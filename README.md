@@ -7,8 +7,12 @@ in standard location accessible to CFFI.
 
 Most functionality of pgplot is supported
 
+This has the line (pushnew :pgplot-does-pdf cl:*features*) in pgplot.asd; if one comments this out, then ps2pdf and its dependencies is no longer needed.  This feature enables external conversion of PS files to PS using.
+
+
 ## Requires
 
+* cffi
 * waaf-cffi
 * ps2pdf
 
