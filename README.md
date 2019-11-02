@@ -1,4 +1,4 @@
-# pgplot - front end to Pearson's PGPLOT C/Fortran vintage graphics library
+# pgplot - Common Lisp front end to Pearson's PGPLOT C/Fortran vintage graphics library
 
 See: http://www.astro.caltech.edu/~tjp/pgplot/
 
