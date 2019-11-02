@@ -11,19 +11,25 @@
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(defpackage pgplot-examples
+  (:use #:cl)
+  (:export #:run-all-demos))
 
-;; load pgplot - if you don't use require, replace this
-;; with the appropriate load command to load compiled pgplot
-;; file
-(eval-when (load eval compile)
-  (require 'pgplot)
-  )
 
+
+
+
+(in-package pgplot-examples)
+
+
+
+#|
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;;;; first, a simple interactive session (enclosed in 
-;;;;;; comments to prevent it running when file is loaded)
-#| 
+;; first, you should read this simple interactive session (enclosed in
+;;  comments to prevent it running when file is loaded)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 
 ;; open X11 device
 (defparameter *p* (pgplot:open-device :x11))  
@@ -32,7 +38,6 @@
 ;; (defparameter *p* (pgplot:open-device :ps :filename "my-plot.ps"))
 ;; would have opened a postscript device.  Note that a poscript device
 ;; must be closed  to flush the postscript file to disk
-
 
 
 ;; set window size (default is 0,0 to 1,1)
@@ -79,6 +84,7 @@
   (demo-plot-1)
   (demo-plot-2)
   (demo-plot-3)
+  (demo-plot-3 :draw-legend t)
   (demo-plot-4)
   (demo-plot-5)
   (demo-plot-5  :log t)
@@ -86,6 +92,7 @@
   (demo-plot-6 :do-labels t)
   (demo-plot-7)
   (demo-plot-8)
+  (demo-plot-9)
   )
 
 ;; helper function to wait for user input
@@ -115,7 +122,7 @@
     (pgplot:xlabel p "x")     (pgplot:ylabel p "y")
     (pgplot:connect p x y1 :color :blue)
     (pgplot:connect p x y2 :color :red)
-    (key-wait)
+    (when (not filename) (key-wait))
     (pgplot:close-device p)))
 
 (defun demo-plot-2 (&key (device :x11) (filename nil))
@@ -140,12 +147,15 @@
     (pgplot:ylabel p "y" :x-offset -0.02)
     (pgplot:toplabel p "Logarithm of Gaussian")
     (pgplot:connect p x y :color :default)
-    (key-wait)
+    (when (not filename) (key-wait))
     (pgplot:close-device p)))
 
 ;; now use points instead of lines
-(defun demo-plot-3 (&key (device :x11) (filename nil))
+(defun demo-plot-3 (&key (device :x11) (filename nil) (draw-legend nil))
   (princ "demo-plot-3 - 2d points plot with sin and cos")(terpri)
+  (when draw-legend
+    (princ "  Using pgplot:draw-legend to add a legend")
+    (terpri))
   (let* ((n 20) 
 	 (x (make-array n :element-type 'double-float))
 	 (y1 (make-array n :element-type 'double-float))
@@ -158,7 +168,7 @@
 	       (setf (aref x i) (* i (/ (* 1.0d0 n)) 2.0d0 pi))
 	       (setf (aref y1 i) (cos (aref x i)))
 	       (setf (aref y2 i) (sin (aref x i)))))
-    (pgplot:set-window p 0 6.4 -1.1 1.1)
+    (pgplot:set-window p 0  6.4 -1.1 1.1)
     (pgplot:box p)
     (pgplot:xlabel p "x")     (pgplot:ylabel p "y")
     ;; the fill list of symbols is in pgplot::*point-symbol-alist*
@@ -166,7 +176,15 @@
 		   :color :blue)
     (pgplot:points p x y2 :circle-2
 		   :color :red)
-    (key-wait)
+					;
+    (when draw-legend
+      (pgplot:draw-plot-legend 
+       p 0.5 0.9
+       '(("cos(x)" :point :asterisk :color :blue)
+	 ("sin(x)" :point :circle-2 :color :red))
+       :draw-box t))
+    
+    (when (not filename) (key-wait))
     (pgplot:close-device p)))
 
 
@@ -215,7 +233,7 @@
     (pgplot:connect p x y2)
     (pgplot:write-text p "Sin" 4.0 0.5 :character-height 1.3)
     ;;    
-    (key-wait)
+    (when (not filename) (key-wait))
     (pgplot:close-device p)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -292,7 +310,7 @@
 		 :nbins 20)
     (pgplot:xlabel p "x")
     (pgplot:ylabel p (if log "Log(N)" "N"))
-    (key-wait)
+    (when (not filename) (key-wait))
     (pgplot:close-device p)))
 
 
@@ -340,7 +358,7 @@
     (pgplot:contour p a :contours contour-levels
 		    :contour-labels (and do-labels contour-labels))
     ;;
-    (key-wait)
+    (when (not filename) (key-wait))
     (pgplot:close-device p)))
 
 (defun demo-plot-7 (&key (device :x11) (filename nil)
@@ -373,7 +391,7 @@
     (pgplot:image p a :type type :transfer-function transfer-function
 		  :color-wedge-side :right )
     ;;
-    (key-wait)
+    (when (not filename) (key-wait))
     (pgplot:close-device p)))
 
 
@@ -408,7 +426,7 @@
 		       :character-height 2.0
 		       :angle 45)
 		    
-    (key-wait)
+    (when (not filename) (key-wait))
     (pgplot:close-device p)
     ))
     
@@ -433,7 +451,8 @@
       ))
     ;;
     (pgplot:vector-field p a b)
-    (key-wait)
+    (pgplot:box p :y-num-labels-left nil :x-num-labels-bottom nil)
+    (when (not filename) (key-wait))
     (pgplot:close-device p)
     ))
     

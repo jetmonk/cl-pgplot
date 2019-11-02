@@ -30,11 +30,17 @@ Example usage, a small subset of possible functions.
 (pgplot:erase *p*)
 
 
-;;;;;
+;;;;; Running the demo routines
 
 (load "pgplot-examples.lisp")
+;;   OR
+(asdf:load-system "pgplot/examples")  
 
-(run-all-demos)
+;; run all demos with X11 pgplot output device
+(pgplot-examples:run-all-demos)
+
+;; run individual demos, with file outputs
+(pgplot-examples::demo-plot-1 :device :ps :filename "demo1.ps")
 
 
 
