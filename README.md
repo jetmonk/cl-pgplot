@@ -8,7 +8,7 @@ in standard location accessible to CFFI.
 Most functionality of pgplot is supported
 
 
-A very nice feature of pgplot library is the use of an X11 Motif based server that maintains an image on screen, while not freezing the program like a single threated GUI program would.
+A very nice feature of pgplot library is the use of an X11 Motif based server that maintains an image on screen, while not freezing the program like a single threaded GUI program would.
 
 
 
