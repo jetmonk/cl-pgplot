@@ -46,6 +46,7 @@ Example usage, a small subset of possible functions.
 ;; run individual demos, with file outputs
 (pgplot-examples::demo-plot-1 :device :ps :filename "demo1.ps")
 
-
+;; run all demos, creating gif files in a directory DEMO-PLOTS
+(pgplot-examples:run-all-demos-to-gif)
 
 ````

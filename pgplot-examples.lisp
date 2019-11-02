@@ -13,7 +13,8 @@
 
 (defpackage pgplot-examples
   (:use #:cl)
-  (:export #:run-all-demos))
+  (:export #:run-all-demos
+	   #:run-all-demos-to-gif))
 
 
 
@@ -93,6 +94,22 @@
   (demo-plot-7)
   (demo-plot-8)
   (demo-plot-9)
+  )
+
+(defun run-all-demos-to-gif ()
+  (ensure-directories-exist "./DEMO-PLOTS/#IGNORE#")
+  (demo-plot-1 :device :gif :filename "./DEMO-PLOTS/pgplot-demo-1.gif")
+  (demo-plot-2 :device :gif :filename "./DEMO-PLOTS/pgplot-demo-2.gif")
+  (demo-plot-3 :device :gif :filename "./DEMO-PLOTS/pgplot-demo-3.gif")
+  (demo-plot-3 :draw-legend t :device :gif :filename "./DEMO-PLOTS/pgplot-demo-3a.gif")
+  (demo-plot-4 :device :gif :filename "./DEMO-PLOTS/pgplot-demo-4.gif")
+  (demo-plot-5 :device :gif :filename "./DEMO-PLOTS/pgplot-demo-5.gif")
+  (demo-plot-5  :log t :device :gif :filename "./DEMO-PLOTS/pgplot-demo-5a.gif")
+  (demo-plot-6 :device :gif :filename "./DEMO-PLOTS/pgplot-demo-6.gif")
+  (demo-plot-6 :do-labels t :device :gif :filename "./DEMO-PLOTS/pgplot-demo-6a.gif")
+  (demo-plot-7 :device :gif :filename "./DEMO-PLOTS/pgplot-demo-7.gif")
+  (demo-plot-8 :device :gif :filename "./DEMO-PLOTS/pgplot-demo-8.gif")
+  (demo-plot-9 :device :gif :filename "./DEMO-PLOTS/pgplot-demo-9.gif")
   )
 
 ;; helper function to wait for user input
