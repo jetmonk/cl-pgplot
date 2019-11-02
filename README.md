@@ -31,7 +31,9 @@ Example usage, a small subset of possible functions.
 
 
 ;;;;;
+
 (load "pgplot-examples.lisp")
+
 (run-all-demos)
 
 
