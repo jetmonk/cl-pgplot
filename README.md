@@ -14,7 +14,7 @@ This has the line (pushnew :pgplot-does-pdf cl:*features*) in pgplot.asd; if one
 
 * cffi
 * waaf-cffi
-* ps2pdf
+* ps2pdf   (not needed if (pushnew :pgplot-does-pdf cl:*features*)  is disabled in pgplot.asd)
 
 
 Example usage, a small subset of possible functions.
