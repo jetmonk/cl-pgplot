@@ -306,7 +306,7 @@ XBOT YTOP"
 
 (defmacro with-window ((p x0 x1 y0 y1) &body body)
 "Evaluate BODY with pgplot P's viewport temporariy set to X0 X1
-XBOT Y1"
+YO Y1"
   (let ((psym (gensym "p"))
 	(x0-sym (gensym "x0"))
 	(x1-sym (gensym "x1"))
@@ -330,8 +330,10 @@ XBOT Y1"
 ;; now the higher level (user) versions of the pgplot routines
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defvar *current-pgplot* nil) ;; the last plot used
-(defvar *pgplot-list* nil) ;; list of all living plots
+
+(defvar *current-pgplot* nil
+  "The current active pgplot device; ie, the last device used")
+(defvar *pgplot-list* nil "List of all alive PGPLOT devices.")
 
 ;; how does one get this directly from pgplot?
 (defconstant +max-pgplot-open-devices+ 8)

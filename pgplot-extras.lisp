@@ -368,7 +368,7 @@ the color of the rectangle"))
 
 
 
-
+#+nil
 (defun bin-2d-data (xvals yvals nx ny &key xmin xmax ymin ymax)
  (error "Use make-2d-density-image instead~%"))
 	
@@ -442,12 +442,15 @@ Return (VALUES ARRAY XMIN XMAX YMIN YMAX N-INSIDE N-OUTSIDE)"
 	   
 
   
-;; create appropriately chosen intervals for small and large ticks between xstart and xend.
-;; return (values big-tick-list small-tick-list) where each tick in the list
-;; is a list (tick-value v-value ndecimals)  where v-value is the fraction of the line
-;; from [xstart,xend], and ndecimals is the number of decimals points that the number
-;; should be printed
+
 (defun generate-linear-tick-intervals (xstart xend)
+"Create appropriately chosen intervals for small and large ticks between 
+ xstart and xend.
+
+ Return (values big-tick-list small-tick-list) where each tick in the
+ list is a list (tick-value v-value ndecimals) where v-value is the
+ fraction of the line from [xstart,xend], and ndecimals is the number
+ of decimals points that the number should be printed"
   (if (= xstart xend)
       ;; return empty lists 
       (values nil nil 0)
@@ -499,6 +502,7 @@ Return (VALUES ARRAY XMIN XMAX YMIN YMAX N-INSIDE N-OUTSIDE)"
 	    
 
 (defun generate-log-tick-intervals (xstart xend)
+  "Generate logarithmic tick intervals; see GENERATE-LINEAR-TICK-INTERVALS."
   (if (or (= xstart xend)
 	  (not (plusp xstart))
 	  (not (plusp xend)))
