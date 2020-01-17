@@ -17,10 +17,14 @@
      (:file "pgplot" :depends-on ("pgplot-ffi"))
      (:file "pgplot-extras" :depends-on  ("pgplot"))
      (:file "fancy-plots" :depends-on  ("pgplot"))
-     (:file "colormap" :depends-on  ("pgplot"))
+     (:file "viridis" :depends-on  ("pgplot"))
+     (:file "colormap" :depends-on  ("pgplot" "viridis"))
      ))	
     
-    
+(asdf:defsystem pgplot/examples
+  :depends-on (pgplot)
+  :components
+  ((:file "pgplot-examples")))
 
 
 

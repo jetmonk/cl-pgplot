@@ -238,6 +238,7 @@ a blanked image with null values."
 
 ;; 'heat' colomap rising from black to red to yellow to white,
 ;;  made up of 3 successive ramps of red,green,blue
+#+nil 
 (defunL insert-heat-colormap-component (cm imin imax name
 					&key
 					(first-color-is-background nil))
@@ -252,7 +253,43 @@ a blanked image with null values."
      :first-color-is-background first-color-is-background)))
 
 
+(defunL insert-heat-colormap (p
+			      &key
+			      (first-color-is-background nil)
+			      (imin 16) (imax 99))
+  (flet ((heat-func (x)
+	   (declare (type float x))
+	   (values
+		(min 1.0 (max 0.0 (* 3.0 x)))
+		(min 1.0 (max 0.0 (* 3.0 (- x 0.3))))
+		(min 1.0 (max 0.0 (* 3.0 (- x 0.6)))))))
+    (modify-colormap
+     p imin imax :heat
+     :first-color-is-background first-color-is-background
+     :color-function #'heat-func)))
+
+
+(defunl insert-rainbow-colormap (p
+				&key
+				(first-color-is-background nil)
+				(imin 16) (imax 99))
+  (labels ((gauss (x x0 sigma)
+	     (declare (type single-float x x0 sigma))
+	     (exp (- (* 0.5 (expt (/ (- x x0) sigma) 2)))))
+	   (rainbow-func (x)
+	     (declare (type float x))
+	     (values (gauss x 0.0 0.40)
+		     (gauss x 0.5 0.33)
+		     (gauss x 1.0 0.40))))
+    (modify-colormap
+     p imin imax :rainbow
+     :first-color-is-background first-color-is-background
+     :color-function #'rainbow-func)))
+				
+
+
 ;; linearly rising grayscale map
+#+nil
 (defunL insert-gray-colormap-component (cm imin imax name
 					&key
 					(first-color-is-background nil))
@@ -265,15 +302,95 @@ a blanked image with null values."
 
 
 
-(defunl insert-maximum-gray-colormap (p
-				      &key
-				      (first-color-is-background nil))
-  "Make the GRAY colormap take up all non-plotting indices (16 to 99) to
-allow good grayscale plotting"
-  (modify-colormap p 16 99 :gray
+(defunL insert-gray-colormap (p
+			      &key
+			      (first-color-is-background nil)
+			      (imin 16) (imax 99))
+  "Insert GRAY colormap by default using all non-plotting indices (16
+to 99) to allow good grayscale plotting"
+  (modify-colormap p imin imax :gray
 		   :first-color-is-background first-color-is-background
 		   :color-function
 		   (lambda (x)
 		     (declare (type float x))
 		     (values x x x))))
 
+
+(defunl insert-viridis-family-colormap (p &key (colormap-name :viridis)
+					(first-color-is-background nil)
+					(imin 32) (imax 99))
+  "Insert a viridis type colormap into colormap indices IMIN to IMAX.
+   :COLORMAP-NAME can be one of (:VIRIDIS :PLASMA :MAGMA :INFERNO)"
+  (when (not (member colormap-name '(:VIRIDIS :PLASMA :MAGMA :INFERNO)))
+    (error "COLORMAP-NAME must be one of :VIRIDIS :PLASMA :MAGMA :INFERNO"))
+  (let ((cvec (case colormap-name
+		(:viridis *viridis-colormap*)
+		(:plasma *plasma-colormap*)
+		(:magma *magma-colormap*)
+		(:inferno *inferno-colormap*))))
+
+    (modify-colormap p imin imax colormap-name
+		     :first-color-is-background first-color-is-background
+		     :color-function
+		     (lambda (x)
+		       (interpolate-viridis cvec x)))))
+		     
+    
+  
+(defunL insert-colormap (p colormap-name
+			 &key 
+			 (imin 16) (imax 99)
+			 (first-color-is-background nil)
+			 (make-default t)
+			 ;; for :DIVERGING only
+			 (rgb1 #(0.0 0.2 0.7))
+			 (rgb2 #(0.6 0.03 0.01)))
+  
+  (declare (type (member colormap-name :viridis :plasma :magma :inferno
+				       :gray :heat :yellow-blue :diverging
+				       :rainbow)
+		 colormap-name))
+  (cond
+    ;;
+    ((member colormap-name '(:viridis :plasma :magma :inferno))
+     (insert-viridis-family-colormap
+      p
+      :colormap-name colormap-name
+      :first-color-is-background first-color-is-background
+      :imin imin :imax imax))
+    ;;
+    ((eq colormap-name :gray)
+     (insert-gray-colormap
+      p
+      :first-color-is-background first-color-is-background
+      :imin imin :imax imax))
+    ;;
+    ((eq colormap-name :heat)
+     (insert-heat-colormap
+      p
+      :first-color-is-background first-color-is-background
+      :imin imin :imax imax))
+    ;;
+    ((eq colormap-name :yellow-blue)
+     (insert-yellow-blue-colormap
+      p
+      :first-color-is-background first-color-is-background
+      :imin imin :imax imax))
+    ;;
+    ((eq colormap-name :diverging)
+     (insert-diverging-colormap
+      p
+      :name :diverging
+      :rgb1 rgb1 :rgb2 rgb2
+      :first-color-is-background first-color-is-background
+      :imin imin :imax imax))
+    ;;
+    ((eq colormap-name :rainbow)
+     (insert-rainbow-colormap
+      p
+      :first-color-is-background first-color-is-background
+      :imin imin :imax imax)))
+  
+  (when make-default
+    (setf (colormap-default-range (pgplot-colormap p)) colormap-name)))
+				   

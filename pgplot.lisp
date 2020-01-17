@@ -47,7 +47,7 @@
    ;;
    ;; we use colormaps, rather than individual color indices
    (colormap          :reader get-colormap :accessor pgplot-colormap)
-   (default-colormap  :reader get-default-colormap :accessor pgplot-default-colormap)
+;   (default-colormap  :reader get-default-colormap :accessor pgplot-default-colormap)
    ;; last cursor position, or NULL if none
    (last-curs-x :reader get-last-curs-x :accessor pgplot-last-curs-x :initform nil)
    (last-curs-y :reader get-last-curs-y :accessor pgplot-last-curs-y :initform nil)
@@ -72,6 +72,7 @@
   ;; a list of the form eg '((:default 34 76) (:gray 34 76) (:rainbow 18 77) ...)
   ;; that delimits inclusive color ranges in the map, for making
   ;; images - each colormap should have a default range
+  (default-range :default) ;; which range to use by default
   (named-ranges (list (list :default 0 16))))
 
 
@@ -98,18 +99,17 @@
 
 
 
-
 ;; generate the default colormap for current device - 16<=nelem<=255 --
 ;; nelem>16 only if rest of colormap is to be filled in with other colors
 ;; fixme - currently uses 100 colors, which is OK for X11, but could
 ;; adjust automatically to number of available colors.  also, our
 ;; color colormap is not so good - eg, no yellow
-;;
+
 ;; we would like to have more than 100 colors, but X11 device seems to support only
 ;; 100 (as determined by calling PGQCOL)
 (defunL make-default-colormap ()
-"make a default colormap with the normal colors, a :grey
-component, a :color rainbow component, and a :heat component"
+"make a default colormap with the normal colors, and a :grey
+component"
   (let* ((nelem 100) ;; ok for X
 	 (rv  (make-array nelem :element-type 'single-float :initial-element 0.0))
 	 (gv  (make-array nelem :element-type 'single-float :initial-element 0.0))
@@ -125,12 +125,9 @@ component, a :color rainbow component, and a :heat component"
 	    (setf (aref rv i) r)
 	    (setf (aref gv i) g)
 	    (setf (aref bv i) b)))
-    ;; make the next highest ones be gray scale
-    (insert-gray-colormap-component cm 16 31 '(:gray :grey))
-    ;; and then a rainbow
-    (insert-rainbow-colormap-component cm 32 76 '(:color :colour))
-    ;; and then a heat map
-    (insert-heat-colormap-component cm 77 99 :heat)
+    ;; make the next highest ones be gray scale for a start - this will be changed
+    (insert-colormap-component cm 16 99  :grey 
+			       (lambda (x) (values x x x)))
     cm ;; return value
     ))
 
@@ -185,43 +182,22 @@ component, a :color rainbow component, and a :heat component"
 
 
 
-;; a rainbow colormap made up of 3 gaussians - widths are
-;; empirical (ie, obtained by fiddling)
-(defunL insert-rainbow-colormap-component
-    (cm imin imax name
-     &key (first-color-is-background nil))
-  (labels ((gauss (x x0 sigma)
-		  (declare (type single-float x x0 sigma))
-		  (exp (- (* 0.5 (expt (/ (- x x0) sigma) 2)))))
-	   (func (x)
-		 (declare (type float x))
-		 (values (gauss x 0.0 0.40)
-			 (gauss x 0.5 0.33)
-			 (gauss x 1.0 0.40))))
-    (insert-colormap-component
-     cm imin imax name #'func
-     :first-color-is-background first-color-is-background)))
 
 
 
+;; this function probably won't be used much except for user-custom colormaps,
+;; since INSERT-COLORMAP  handles the standard ones
 (defgeneric modify-colormap (p imin imax colormap-name
 			     &key color-function
 			       first-color-is-background)
 							 
-  (:documentation "Either modify an existing :GRAY, :COLOR, :HEAT
-colormap, if COLOR-FUNCTION is undefined, stretching it to accomodate
-the index range IMIN to IMAX, and clobbering other overlapping
-colormaps.
-
-Else insert a new colormap such that (COLOR-FUNCTION x) returns
+  (:documentation "Insert a new colormap such that (COLOR-FUNCTION x) returns
   (VALUES RED BLUE GREEN) where red,blue,green are in [0,1] and X
-is the distance down the index range, also [0,1].    This operation
+is the distance in the index range, also [0,1].    This operation
 will clobber existing colormaps.  Default colormap ranges are
 
   Default Colors [0,15]  - do not alter this to allow normal plotting
-  Gray           [16,31]
-  Color          [32,76]
-  Heat           [77,99]
+  Others         [16,99]
 
 If FIRST-COLOR-IS-BACKGROUND is set, then the first color of the range
 is set to be be the background color.  This is useful for blanking images."))
@@ -230,33 +206,13 @@ is set to be be the background color.  This is useful for blanking images."))
 			     &key
 			     (color-function nil)
 			     (first-color-is-background nil))
- 
   (declare (type (unsigned-byte 16) imin imax)
-	   (type symbol colormap-name)
+	   (type keyword colormap-name)
 	   (type (or null (function (float) (values float float float)))
 		 color-function))
-  (when (not color-function)
-    (cond ((or (eq colormap-name :gray) (eq colormap-name :grey))
-	   (insert-gray-colormap-component
-	    (pgplot-colormap p) imin imax
-	    (list :gray :grey)
-	    :first-color-is-background first-color-is-background))
-	  ((or (eq colormap-name :color) (eq colormap-name :colour))
-	   (insert-rainbow-colormap-component
-	    (pgplot-colormap p) imin imax
-	    (list :color :colour)
-	    :first-color-is-background first-color-is-background))
-	  ((eq colormap-name :heat)
-	   (insert-heat-colormap-component
-	    (pgplot-colormap p) imin imax :heat
-	    :first-color-is-background first-color-is-background))
-	  (t (error "acceptable colormap-names are :color :colour :gray :grey :heat"))))
-  (when color-function
-    (when (not colormap-name)
-      (error "You must name the colormap range using colormap-name = :your-chosen-name"))
-    (insert-colormap-component (pgplot-colormap p) imin imax
-			       colormap-name color-function
-			       :first-color-is-background first-color-is-background))
+  (insert-colormap-component (pgplot-colormap p) imin imax
+			     colormap-name color-function
+			     :first-color-is-background first-color-is-background)
   (activate-device p)
   (set-colormap (pgplot-colormap p)))
 
@@ -280,7 +236,7 @@ is set to be be the background color.  This is useful for blanking images."))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defmacro with-viewport ((p xleft xright ybot ytop) &body body)
-"Evaluate BODY with pgplot P's viewport temporariy set to XLEFT XRIGHT
+"Evaluate BODY with pgplot P's viewport temporarliy set to XLEFT XRIGHT
 XBOT YTOP"
   (let ((psym (gensym "p"))
 	(xleft-sym (gensym "xleft"))
@@ -305,7 +261,7 @@ XBOT YTOP"
 
 
 (defmacro with-window ((p x0 x1 y0 y1) &body body)
-"Evaluate BODY with pgplot P's viewport temporariy set to X0 X1
+"Evaluate BODY with pgplot P's viewport temporarily set to X0 X1
 YO Y1"
   (let ((psym (gensym "p"))
 	(x0-sym (gensym "x0"))
@@ -411,6 +367,7 @@ YO Y1"
 (defunL open-device (device &key
 		     (plot-name "untitled") (filename nil)
 		     (font :roman)
+		     (colormap :viridis) (first-color-is-background nil)
 		     (square nil)
 		     (aspect-ratio)
 		     (height)
@@ -421,6 +378,8 @@ YO Y1"
 PLOT-NAME is an optional name
 FILENAME is the file to which to write if device type chosen targets file
 FONT is the font to use
+COLORMAP is one of the colormaps supported by INSERT-COLORMAP and
+  FIRST-COLOR-IS-BACKGROUND determines if the first color is set to background
 SQUARE is a flag that tries to make the final plot square
 ASPECT-RATIO tries to set the aspect ratio (over-rides SQUARE)
   1 means square; <1 means horizontal rectangle; >1 means vertical rectangle
@@ -478,11 +437,13 @@ INVERT inverts normal color scheme"
     (setf (pgplot-text-background-color-index p) -1)
     (setf (pgplot-viewport p) '(0.20 0.95 0.15 0.90)) ;; what looks good
     (setf (pgplot-window p)   '(0.0 1.0 0.0 1.0))
-    (setf (pgplot-default-colormap p) (make-default-colormap))
-    (set-colormap (pgplot-default-colormap p))
-    (setf (pgplot-colormap p) (pgplot-default-colormap p))
+    (setf (pgplot-colormap p) (make-default-colormap))
+    ;;(set-colormap (pgplot-default-colormap p)) ;; sets a default gray colormap
+    ;; insert-colormap is in next file, so we funcall it to avoid compiler complaints
     (setf (pgplot-color-index-range p)
 	  (list 1 (colormap-npoints (pgplot-colormap p))))
+    (funcall 'insert-colormap p colormap :first-color-is-background first-color-is-background)
+
 
     ;;
     (push p *pgplot-list*) ;; add to global list
@@ -857,11 +818,13 @@ edge of viewport, 0 means don't clip"))
 	     (hatching-style nil hatching-style%);; list (angle sepn phase)
 	     (clipping-state nil clipping-state%))
      &body body)
-  "macro to run BODY with pgplot's  properties temporarily
-set to give values.
+  "Macro to run BODY with pgplot's  properties temporarily
+set to given values.
+
  eg draw a blue box
   (with-pgplot-settings (pgplot :color :blue)
        (pgplot:box pgplot))
+
 available settings are 
  :FONT :CHARACTER-HEIGHT :TEXT-BACKGROUND-COLOR :COLOR
  :FILL-AREA-STYLE :LINE-STYLE :CLIPPING-STATE
@@ -1032,7 +995,7 @@ nor restored, it being assumed that no value was specified.
 
 (defgeneric set-color-index-range (p ilo ihi)
   (:documentation  
-   "set the color index rangle of pgplot device P to be ILO..IHI.
+   "Set the color index rangle of pgplot device P to be ILO..IHI.
 This is used for drawing imagemaps or greymaps"))
 
 (defmethodL set-color-index-range ((p pgplot) (ilo integer) (ihi integer))
@@ -1044,7 +1007,7 @@ This is used for drawing imagemaps or greymaps"))
 
 (defgeneric set-viewport (p xleft xright ybot ytop &key viewport)
   (:documentation
-   "set the viewport of device P.  This is the region in absolute
+   "Set the viewport of device P.  This is the region in absolute
 coordinates over which plotting is active.  XLEFT, XRIGHT, YBOT, YTOP
 are all in [0,1].  If VIEWPORT is given, then the coordinates given are 
 relative to it, and not the absolute frame boundaries 0..1"))
@@ -1086,7 +1049,7 @@ to the viewport."))
 
 
 (defgeneric move-to (p x y) 
-  (:documentation "for pgplot device P move to user coordinates X,Y")) 
+  (:documentation "For pgplot device P, move to user coordinates X,Y")) 
 ;;
 (defmethodL move-to ((p pgplot) (x real) (y real)) 
   (setf (pgplot-pen-position p) (list x y))
@@ -1114,7 +1077,7 @@ to the viewport."))
    x-tick y-tick  ;; automatic by default
    nxsub nysub)
   (:documentation
-   " Draw a box for pgplot device P.
+   "Draw a box for pgplot device P.
 Keywords are:
   SIZE             -  size used for labels (real)
   FONT             -  which font to use (number or symbol)
@@ -1222,7 +1185,7 @@ Keywords are:
 (defgeneric plotlabel
     (p xlabel ylabel toplabel)
   (:documentation
-   "label pgplot device P with XLABEL, YLABEL, TOPLABEL.
+   "Label pgplot device P with XLABEL, YLABEL, TOPLABEL.
 Labels are not well placed, and (pgplot:xlabel p \"label\")
 is preferred."))
 
@@ -1340,7 +1303,7 @@ TEXT   = string to be written."))
 		    intval ;;spacing of contour labels, in cells
 		    minint) ;;contours that cross <minint cells not labeled
  (:documentation
-  "create a contour plot of array A[i,j].  Contours are made at locations in
+  "Create a contour plot of array A[i,j].  Contours are made at locations in
 vector CONTOURS, but if this is NIL then N-CONTOURS evenly spaced contours
 between optional MIN-CONTOUR and MAX-CONTOUR are made instead.
 TRANSFORMATION-MATRIX (as described in pgplot docs) transforms array i,j to
@@ -1371,7 +1334,7 @@ transformation matrix (TR) changes this to:
 		    (contour-labels nil);;vector of contour-labels, NIL ignored
 		    (intval 20);;spacing of contour labels, in cells
 		    (minint 10));;contours that cross <minint cells not labeled
-  "create a contour plot of array A[i,j].  Contours are made at locations in
+  "Create a contour plot of array A[i,j].  Contours are made at locations in
 vector CONTOURS, but if this is NIL then N-CONTOURS evenly spaced contours
 between optional MIN-CONTOUR and MAX-CONTOUR are made instead.
 TRANSFORMATION-MATRIX (as described in pgplot docs) transforms array i,j to
@@ -1516,7 +1479,8 @@ with LINE-WIDTH (integer), COLOR (integer or symbol), and LINE-STYLE
 
 (defgeneric errorbars (p xvec yvec evec &key direction size line-width
 					  color line-style)
-  (:documentation  "For pgplot device P, draw errorbars at points represented by pairs
+  (:documentation
+   "For pgplot device P, draw errorbars at points represented by pairs
 in XVEC, YVEC, of magnitude of points in vector EVEC.
 DIRECTION can be :X :Y :PLUS-X :PLUS-Y :MINUS-X :MINUS-Y (default is :Y)
 LINE-WIDTH is an integer, COLOR is an integer or symobl, and
@@ -1660,7 +1624,7 @@ that have a matching symbol :OPEN-SQUARE."))
 ;; convert world coordinates to device coordinates	
 (defgeneric world-to-device  (p x y)
     (:documentation
-     "for pgplot device P convert world coordinates X,Y (either
+     "For pgplot device P convert world coordinates X,Y (either
 reals or vectors) to device coordinates in [0,1]"))   
 	   
 (defmethodL world-to-device ((p pgplot) (x real) (y real))
@@ -1688,7 +1652,7 @@ reals or vectors) to device coordinates in [0,1]"))
 ;; convert device coordinates to world coordinates
 (defgeneric device-to-world  (p x y)
     (:documentation
-     "for pgplot device P convert device coordinates X,Y 
+     "For pgplot device P convert device coordinates X,Y 
 reals or vectors) to user coordinates"))   
 	   
 (defmethodL device-to-world ((p pgplot) (x real) (y real))
@@ -1716,7 +1680,8 @@ reals or vectors) to user coordinates"))
 
 (defgeneric write-text (p text x y &key fjust angle device-coords
 				     color character-height font center)
-  (:documentation  "For pgplot device P, write text string STRING at location x,y,
+  (:documentation
+   "For pgplot device P, write text string STRING at location x,y,
 FJUST is justification (0=left justification at x,y; 1=right justified).
 ANGLE is angle counterclockwise from horizontal.
 COLOR is a symbol or integer;  
@@ -1762,7 +1727,8 @@ CENTER is T/NIL whether the text should be centered at X,Y. Otherwise
 
 (defgeneric text-bounding-box (p text &key x0 y0 angle fjust
 					device-coords character-height font)
-  (:documentation   "Like WRITE-TEXT but returns two vectors representing the bounding
+  (:documentation
+   "Like WRITE-TEXT but returns two vectors representing the bounding
 box the text would occupy if printed. Returns (VALUES XVEC YVEC) where
 each vector is of length 4, and contains 4 corners of bounding box:
 lower left, upper left, upper right, lower right"))
@@ -1786,7 +1752,8 @@ lower left, upper left, upper right, lower right"))
 
 (defgeneric xlabel (p text &key x-offset y-offset
 			     color character-height font)
-  (:documentation   "For pgplot device P, draw x axis label TEXT, nudging it
+  (:documentation
+   "For pgplot device P, draw x axis label TEXT, nudging it
 by X-OFFSET, Y-OFFSET in device coordinates.
 If used, COLOR is an integer or symbol, CHARACTER-HEIGHT is a real,
 and FONT is an integer or symbol"))
@@ -1820,7 +1787,8 @@ and FONT is an integer or symbol"))
 
 (defgeneric ylabel (p text &key x-offset y-offset color
 			     character-height font)
-  (:documentation   "For pgplot device P, draw y axis label TEXT, nudging it
+  (:documentation
+   "For pgplot device P, draw y axis label TEXT, nudging it
 by X-OFFSET, Y-OFFSET in device coordinates.
 If used, COLOR is an integer or symbol, CHARACTER-HEIGHT is a real,
 and FONT is an integer or symbol"))
@@ -1852,7 +1820,8 @@ and FONT is an integer or symbol"))
 
 (defgeneric toplabel (p text &key x-offset y-offset color
 			       character-height font)
-  (:documentation    "For pgplot device P, draw top label TEXT, nudging it
+  (:documentation
+   "For pgplot device P, draw top label TEXT, nudging it
 by X-OFFSET, Y-OFFSET in device coordinates.
 If used, COLOR is an integer or symbol, CHARACTER-HEIGHT is a real,
 and FONT is an integer or symbol"))
@@ -1922,7 +1891,8 @@ X2,Y2, using current arrow qualities.  SIZE is a real."))
 
 (defgeneric circle (p x0 y0 radius &key line-width color line-style
 				     fill-area-style)
-  (:documentation  "For pgplot device P, draw a circle of radius RADIUS at X0,Y0
+  (:documentation
+   "For pgplot device P, draw a circle of radius RADIUS at X0,Y0
 LINE-WIDTH is an integer, COLOR an integer or symbol, LINE-STYLE an
 integer or symbol, and FILL-AREA-STYLE an integer or symbol."))
 
@@ -1943,7 +1913,8 @@ integer or symbol, and FILL-AREA-STYLE an integer or symbol."))
 		       theta-deg
 		       &key line-width color line-style 
 			 fill-area-style n-points)
-  (:documentation   "For pgplot device P, draw an ellipse of semi-major-axes
+  (:documentation
+   "For pgplot device P, draw an ellipse of semi-major-axes
 MAJOR-AXIS and MINOR-AXIS, with the major axis at an angle
 THETA-DEG counterclockwise from +x axis.
 LINE-WIDTH is an integer, COLOR an integer or symbol, LINE-STYLE an
@@ -1985,7 +1956,8 @@ N-POINTS is the number of segments to use."))
 
 (defgeneric rectangle (p x1 x2 y1 y2 &key line-width color line-style
 				       draw-outline outline-color fill-area-style)
-  (:documentation       "For pgplot device P, draw an rectangle with corners X1,Y1 and X2,Y2
+  (:documentation
+   "For pgplot device P, draw an rectangle with corners X1,Y1 and X2,Y2
 LINE-WIDTH is an integer, COLOR an integer or symbol, LINE-STYLE an
 integer or symbol, and FILL-AREA-STYLE an integer or symbol.
 
@@ -2020,7 +1992,8 @@ style specified.
 
 (defgeneric polygon (p xvec yvec &key line-width color line-style
 				   draw-outline outline-color fill-area-style )
-  (:documentation    "For pgplot device P, draw a polygon with vertices
+  (:documentation
+   "For pgplot device P, draw a polygon with vertices
 given by pairs in vectors XVEC YVEC.
 LINE-WIDTH is an integer, COLOR an integer or symbol, LINE-STYLE an
 integer or symbol, and FILL-AREA-STYLE an integer or symbol."))
@@ -2051,7 +2024,8 @@ integer or symbol, and FILL-AREA-STYLE an integer or symbol."))
 ;; COLORMAP IS NO LONGER VALID (should we insert new name too?)
 
 (defgeneric set-colormap-color (p ic r g b &key name)
-  (:documentation   "For pgplot device P, replace the current colormap's color
+  (:documentation
+   "For pgplot device P, replace the current colormap's color
 denoted by integer IC with one given by the reals R,G,B
 NAME is the optional new name for the color"))
 
@@ -2509,7 +2483,8 @@ FILL is a boolean flag whether to fill the histogram, and
 			 color-wedge-side color-wedge-width
 			 color-wedge-disp color-wedge-label
 			 character-height)
-  (:documentation  "For a pgplot P, plot 2d real array A as an image.
+  (:documentation
+   "For a pgplot P, plot 2d real array A as an image.
 TYPE is the name of the colormap to use (eg :DEFAULT :GRAY :COLOR :HEAT)
 TRANSFORMATION-MATRIX is a matrix to transform array coordinates to
   user coordinates.
@@ -2533,6 +2508,9 @@ transformation matrix (TR) changes this to:
   X = TR[0,0] + TR[0,1]*J + TR[0,2]*I
   Y = TR[1,0] + TR[1,1]*J + TR[1,2]*I
 
+It is probably necessary to reset the viewport to leave a margin of
+about 0.1 on the COLOR-WEDGE-SIDE to fit the wedge onto the plot. 
+  eg: (pgplot:set-viewport p xx 0.90 xx xx)
 
 QUIRK - the color wedge, if drawn, is linear, which is awkward for a
 nonlinear transfer function, because the entire wedge will be colored
@@ -2543,7 +2521,7 @@ custom wedge plotting function with an appropriate non-linear scale."))
 
 (defmethodl image ((p pgplot) (a array) &key
 		  ;; type refers to name in (colormap-named-ranges colormap)
-		  (type :default)  
+		  (type nil)   ;; use (colormap-default-range colormap) if NIL
 		  (transformation-matrix nil)
 		  (i-min-index nil) (i-max-index nil)
 		  (j-min-index nil) (j-max-index nil)
@@ -2558,8 +2536,8 @@ custom wedge plotting function with an appropriate non-linear scale."))
 		  (transfer-function :linear)
 		  ;;
 		  (color-wedge-side NIL)
-		  (color-wedge-width 3.0)
-		  (color-wedge-disp  1.0)
+		  (color-wedge-width 1.5)
+		  (color-wedge-disp  0.2) ;; displacement in char units
 		  (color-wedge-label "")
 		  (character-height nil)) ;; for color wedge
  
@@ -2599,6 +2577,8 @@ custom wedge plotting function with an appropriate non-linear scale."))
       (error "image: transformation matrix ~A not a 2x3 matrix" 
 	     transformation-matrix))
   (let ((tv (make-array 6 :element-type 'single-float :initial-element 0.0))
+	;; set type of colormap to be the default
+	(type (or type (colormap-default-range (pgplot-colormap p))))
 	;; index for transfer function
 	(n-pgsitf  (cond ((eq transfer-function :linear) 0) ;; set transfer function
 			 ((eq transfer-function :log) 1)
@@ -2656,9 +2636,10 @@ custom wedge plotting function with an appropriate non-linear scale."))
 				 line-width character-height
 				 line-style color)
   (:documentation
- "Draw a labeled axis from x1 to x2, with 
+ "Draw a labeled axis from x1 to x2, with:
 
- TICKS a vector of values in [0,1] representing points on line to draw tick marks.
+ TICKS a vector of values in [0,1] representing points on line to draw 
+   tick marks.
  LABELS a vector of strings to to write (or NIL)
  ORIENT the angle in degrees of the text relative to line
  DISPLACEMENT the offset of the labels, in character units
@@ -2690,12 +2671,13 @@ custom wedge plotting function with an appropriate non-linear scale."))
 ;; correctly for log images
 (defun %draw-color-box (p val1 val2 xw1 xw2 yw1 yw2 &key 
 			(label-pos :right) 
-			(type :default)
+			(type nil)
 			(direction :vertical)
 			(transfer-function :linear)
 			(draw-box t))
   (with-viewport (p xw1 xw2 yw1 yw2)
     (let*  ((nbig 500)
+	    (type (or type (colormap-default-range (pgplot-colormap p))))
 	    (nx (if (eq direction :vertical) 2 nbig ))
 	    (ny (if (eq direction :vertical) nbig 2))
 	    (a (make-array (list ny nx) :element-type 'single-float :initial-element 0.0))
@@ -2721,7 +2703,9 @@ custom wedge plotting function with an appropriate non-linear scale."))
 (defgeneric color-wedge (p val1 val2
 			    &key  side type min-color-index max-color-index
 			      transfer-function disp width label)
-  (:documentation   "Draw a color wedge to annotate an image. 
+  (:documentation
+
+   "Draw a color wedge to annotate an image. 
  
  VAL1 and VAL2 are the limiting values for the brightest/dimmest values
  SIDE is one of :left :right :top :bottom
@@ -2729,9 +2713,10 @@ custom wedge plotting function with an appropriate non-linear scale."))
  WIDTH is the width of the wedge in char units
  LABEL is the units label
 
-WARNING: the color map and transfer function must be consistent with the original
-IMAGE call - Thus it is best to use this routine from within the IMAGE routine, using the
-COLOR-WEDGE-SIDE keyword to activate a color wedge.
+WARNING: the color map and transfer function must be consistent with
+the original IMAGE call - Thus it is best to use this routine from
+within the IMAGE routine, using the COLOR-WEDGE-SIDE keyword to
+activate a color wedge.
 
 Works only for IMAGE, not GRAY. This would be easy to change. But we never
 really use PGGRAY."))
@@ -2771,15 +2756,18 @@ really use PGGRAY."))
 			    i-min-index i-max-index j-min-index j-max-index
 			    line-width color line-style
 			    blank-val)
-  (:documentation "Create a vector field from similar arrays A and B.
+  (:documentation
+   "Create a vector field from similar arrays A and B.
 
 A is the X, or second index, component of the flow and B is the Y, or
 first index, component of the flow.  Most arguments are similar to
-CONTOUR otherwise.  In other words, if A filled with 1 and B with zero, the flow
-will go from left to right assuming no transformation matrix.
+CONTOUR otherwise.  In other words, if A filled with 1 and B with
+zero, the flow will go from left to right assuming no transformation
+matrix.
 
-ARROW-SCALE-FACTOR is what is called C in the PGPLOT manual.  BLANK-VAL is the value
-that is ignored for plotting, by default MOST-POSITIVE-SINGLE-FLOAT"))
+ARROW-SCALE-FACTOR is what is called C in the PGPLOT manual.
+BLANK-VAL is the value that is ignored for plotting, by default
+MOST-POSITIVE-SINGLE-FLOAT"))
 
 (defmethodL vector-field ((p pgplot) (a array) (b array) &key
 			  (arrow-scale-factor 0.0)

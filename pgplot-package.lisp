@@ -92,8 +92,6 @@
 	    #:horizontal-bar-chart
 	    ;;
 	    ;; colormap.lisp
-	    #:insert-diverging-colormap 
-	    #:insert-yellow-blue-colormap
-	    #:insert-maximum-gray-colormap
+	    #:insert-colormap ;; handles all colormaps now
            ))
 
