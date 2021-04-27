@@ -502,19 +502,22 @@ INVERT inverts normal color scheme"
       (progn
 	(setf (pgplot-is-open p) nil) ;; mark device as closed
 	(let ((old-dev (if *current-pgplot* (pgplot-id *current-pgplot*) nil))
-	      (this-dev (pgplot-id p)))
+	      (this-dev (pgplot-id p))
+	      (ps-success nil)) ;; postscript failed - special case
 	  (pgslct this-dev)
 	  (pgask 0) ;; disable the silly return key requirement
 	  (pgupdt)
 	  (pgclos)
 	  (when (pgplot-output-file p)
 	    ;; put the bounding box in FRONT of the file
-	    (if (member (pgplot-device p) '(:pdf :ps))
-		(fix-ps-bounding-box (pgplot-tmp-output-file p)))
+	    (when (member (pgplot-device p) '(:pdf :ps))
+	      (setf ps-success
+		    (fix-ps-bounding-box (pgplot-tmp-output-file p) :error-on-fail nil)))
 	    
 	    ;; maybe convert ps to pdf, if device is :PDF
 	    #+pgplot-does-pdf 
-	    (if (eq (pgplot-device p) :pdf) ;; tmpfile must be a .ps
+	    (if (and (eq (pgplot-device p) :pdf) ;; tmpfile must be a .ps
+		     ps-success)
 		(ps2pdf:ps2pdf (pgplot-tmp-output-file p)
 			       :outfile (pgplot-output-file p)
 			       :orientation :seascape) ;; fixes orientation we hope
@@ -1679,7 +1682,9 @@ reals or vectors) to user coordinates"))
     
 
 (defgeneric write-text (p text x y &key fjust angle device-coords
-				     color character-height font center)
+				     color character-height font line-width
+				     center
+				     shadow shadow-color shadow-scale)
   (:documentation
    "For pgplot device P, write text string STRING at location x,y,
 FJUST is justification (0=left justification at x,y; 1=right justified).
@@ -1687,33 +1692,53 @@ ANGLE is angle counterclockwise from horizontal.
 COLOR is a symbol or integer;  
 CHARACTER-HEIGHT is a real;
 FONT is a symbol or integer
+LINE-WIDTH is NIL or an integer
 CENTER is T/NIL whether the text should be centered at X,Y. Otherwise
   it starts at X,Y.  Unlike FJUST, CENTER adjusts up/down as well 
-  as left/right."))
+  as left/right.
+SHADOW is T if a shadow version of text is desired under the text, for example to 
+  make the text visible against a background image
+  -  SHADOW-COLOR is the color of the shadow
+  -  SHADOW-SCALE is the multiple of the text line-width to use for the shadow
+"))
 
 (defmethodL write-text ((p pgplot) (text string) (x real) (y real) &key
-		       (fjust 0.0) (angle 0.0) (device-coords nil)
-		       (color nil) (character-height nil) (font nil)
-		       (center nil))
+			(fjust 0.0) (angle 0.0) (device-coords nil)
+			(color nil) (character-height nil) (font nil)
+			(line-width nil)
+			(center nil)
+			(shadow nil) (shadow-color :background) (shadow-scale 6))
  
   ;; if device coords non-nil, assume x,y are really in device coordinates
   ;; and transform to world coords
   (if device-coords (multiple-value-setq (x y) (device-to-world p x y)))
   (activate-device p)
-  (with-pgplot-settings (p :color color :character-height character-height
-			   :font font)
-    (let ((xx x) (yy y))
-      (when center
-	(multiple-value-bind (xvec yvec)
-	    (text-bounding-box p text :angle angle)
-	  ;; decrement position x,y by mean position of bounding box
-	  (loop for xc across xvec and yc across yvec
-	       do  
-	       (decf xx (* 0.25 xc))
-	       (decf yy (* 0.25 yc)))))
-      ;;
-      (pgptxt xx yy angle fjust text)))
+  (let ((xx x) (yy y)
+	(%line-width (or line-width (get-line-width p))))
+    (when center
+      (multiple-value-bind (xvec yvec)
+	  (text-bounding-box p text :angle angle)
+	;; decrement position x,y by mean position of bounding box
+	(loop for xc across xvec and yc across yvec
+	      do  
+		 (decf xx (* 0.25 xc))
+		 (decf yy (* 0.25 yc)))))
     ;;
+    ;; if shadow text is enabled, write text under the real text but
+    ;; with a thicker line width
+    (when shadow
+      (with-pgplot-settings (p :color shadow-color 
+			       :character-height character-height
+			       :line-width (ceiling (* shadow-scale %line-width))
+			       :font font)
+	(pgptxt xx yy angle fjust text)))
+    ;;
+    (with-pgplot-settings (p :color color
+			     :character-height character-height
+			     :line-width %line-width
+			     :font font)
+      (pgptxt xx yy angle fjust text)))
+  ;;
   (fix-pen-position p)
   t)
   
